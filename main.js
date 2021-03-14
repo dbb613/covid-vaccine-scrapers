@@ -13,13 +13,24 @@ const dataDefaulter = require("./data/dataDefaulter");
 const file = require("./lib/file");
 const s3 = require("./lib/s3");
 const { getAllCoordinates } = require("./getGeocode");
+const debug = require("debug");
+const logger = debug("main");
+
+const log = (parameters) => {
+    logger(parameters);
+};
+
+log("init");
 
 async function execute() {
-    const cachedResults = await fetch(
-        "https://mzqsa4noec.execute-api.us-east-1.amazonaws.com/prod"
-    )
-        .then((res) => res.json())
-        .then((unpack) => JSON.parse(unpack.body).results);
+    log("in handler");
+
+    const cachedResults = [];
+    // const cachedResults = await fetch(
+    //     "https://mzqsa4noec.execute-api.us-east-1.amazonaws.com/prod"
+    // )
+    //     .then((res) => res.json())
+    //     .then((unpack) => JSON.parse(unpack.body).results);
 
     Puppeteer.use(StealthPlugin());
 
@@ -31,16 +42,17 @@ async function execute() {
 
     const browser = process.env.DEVELOPMENT
         ? await Puppeteer.launch({
-            executablePath: process.env.CHROMEPATH,
-            headless: true,
-        })
+              executablePath: process.env.CHROMEPATH,
+              headless: true,
+          })
         : await Puppeteer.launch({
-            args: chromium.args,
-            defaultViewport: chromium.defaultViewport,
-            executablePath: await chromium.executablePath,
-            headless: chromium.headless,
-            ignoreHTTPSErrors: true,
-        });
+              args: chromium.args,
+              defaultViewport: chromium.defaultViewport,
+              //executablePath: await chromium.executablePath,
+              executablePath: process.env.CHROMEPATH,
+              headless: chromium.headless,
+              ignoreHTTPSErrors: true,
+          });
 
     const gatherData = async () => {
         const results = await Promise.all(
@@ -96,7 +108,10 @@ async function execute() {
             file.write("out.json", webData);
             return responseJson;
         } else {
-            const uploadResponse = await s3.saveWebData(webData, responseJson.timestamp);
+            const uploadResponse = await s3.saveWebData(
+                webData,
+                responseJson.timestamp
+            );
             return uploadResponse;
         }
     };
@@ -108,6 +123,12 @@ exports.handler = execute;
 if (process.env.DEVELOPMENT) {
     (async () => {
         console.log("DEV MODE");
+        await execute();
+        process.exit();
+    })();
+} else {
+    (async () => {
+        console.log("NOT DEV MODE");
         await execute();
         process.exit();
     })();
